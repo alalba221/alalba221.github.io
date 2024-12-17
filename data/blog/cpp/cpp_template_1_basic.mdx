@@ -247,7 +247,7 @@ void foo(T a, T b);
 ```
 When calling the function:
 - The non-template function is preferred by default.
-- If you want to explicitly call the template version, you need to add the template specifier <>.
+- If you want to explicitly call the template version, you need to add the template specifier.
 ```cpp
 foo(1, 2);     // Calls the normal (non-template) function
 foo<>(1, 2);   // Calls the template function
