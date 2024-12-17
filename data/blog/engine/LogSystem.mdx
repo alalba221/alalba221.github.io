@@ -56,7 +56,7 @@ It’s worth noting that for fatal errors, we can terminate the program by throw
 # Wraping LogSystem as Macros
 ```cpp
 #define LOG_HELPER(LOG_LEVEL, ...) \
-    g_runtime_global_context.m_logger_system->log(LOG_LEVEL, "[" + std::string(__FUNCTION__) + "] " + __VA_ARGS__);
+g_runtime_global_context.m_logger_system->log(LOG_LEVEL, "[" + std::string(__FUNCTION__) + "] " + __VA_ARGS__);
 // __FUNCTION__: 目前所在函数
 #define LOG_DEBUG(...) LOG_HELPER(LogSystem::LogLevel::debug, __VA_ARGS__);
 #define LOG_INFO(...) LOG_HELPER(LogSystem::LogLevel::info, __VA_ARGS__);
@@ -64,5 +64,5 @@ It’s worth noting that for fatal errors, we can terminate the program by throw
 #define LOG_ERROR(...) LOG_HELPER(LogSystem::LogLevel::error, __VA_ARGS__);
 #define LOG_FATAL(...) LOG_HELPER(LogSystem::LogLevel::fatal, __VA_ARGS__);
 ```
-
+Finally, you only need to create the `logger` during the initialization of the global context
 
