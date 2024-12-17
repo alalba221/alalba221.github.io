@@ -11,6 +11,8 @@ layout: PostLayout
 <!-- canonicalUrl: https://tailwind-nextjs-starter-blog.vercel.app/blog/introducing-tailwind-nextjs-starter-blog -->
 ---
 
+<TOCInline toc={props.toc} />
+
 `std::cerr` is not very flexible: it's hard to format, lacks log levels, cannot save logs, and doesn't allow control over output to either the console or a file. So, before we start writing our asset manager, let’s first improve our LogSystem—sharpening the axe doesn’t delay the work of cutting firewood.
 
 # Importing spdlog
