@@ -37,9 +37,9 @@ In addition, various types of **third-party libraries** also integrate across di
 # Explore Game Engine Layers
 Next, we will introduce the logic and functionality of the different layers of the game engine.
 
-### Resource Layer
+## Resource Layer
 
-##### From Resource to Asset
+### From Resource to Asset
 The transition from **resources** to **assets** is crucial in game development. **Resources** 
 refer to raw data like 3D models, textures, and animations created in tools such as 3DMax or Photoshop, 
 stored in various formats like `.max`, `.psd`, or `.jpg`. These formats are not directly usable or efficient within a game engine due to their complexity and storage inefficiency.
@@ -49,7 +49,7 @@ For example:
 - Large editable data from tools like Max or Maya are stripped of unnecessary information, retaining only what is essential for the game.
 This conversion mirrors simplifying a Word document into a lightweight TXT file. It ensures that data is streamlined for performance and compatibility, enabling smooth integration and optimal performance within the game engine. This process, termed "engine-ization," is the first critical step in turning raw resources into usable assets.
 
-##### GUID - The Unique Identifier for Game Assets
+### GUID - The Unique Identifier for Game Assets
 In modern game engines, asset management heavily relies on establishing relationships and references among various data. 
 For example, a robot character comprises meshes, textures, and animation assets that are inherently linked. 
 These associations are defined in a **composed asset**, a relational script that specifies how these resources work together. When the engine reads this composed asset, it knows what resources to load.
@@ -61,7 +61,7 @@ This ensures assets can be accurately referenced **regardless of changes in thei
 By implementing GUIDs, game engines maintain a robust reference system, enabling seamless management and loading of assets while preserving relationships across complex asset networks. This identification mechanism is fundamental for efficient asset handling in large-scale game development.
 ![7](/static/images/games104_02/07.png)
 
-##### Runtime Asset Manager
+### Runtime Asset Manager
 When transforming scattered raw files into assets for the resource system, a runtime asset manager is essential. This system, while straightforward in concept, plays a critical role in managing the relationships and lifecycles of assets during gameplay.
 The Runtime Asset Manager oversees assets in real-time as the game runs. _Assets are treated as interconnected files_, with references linking them. The manager ensures that these links are maintained dynamically during runtime.
 
@@ -79,8 +79,8 @@ Lifecycle management includes **garbage collection**, which cleans up unused ass
 To optimize memory usage, assets are loaded only when needed. For instance, a character’s textures in Unreal Engine might initially appear blurry before becoming detailed as higher-quality assets are loaded. This strategy balances memory and performance but requires careful design.
 The resource layer manages the allocation of the engine's ecosystem resource pool, handling every asset’s lifecycle in real time. This makes it a critical layer for ensuring the game engine runs smoothly.
 
-### Function Layer
-##### The Magic of Tick: Tick Logic and Tick Render
+## Function Layer
+### The Magic of Tick: Tick Logic and Tick Render
 With assets ready, the next step in game development is creating gameplay mechanics, like animating a character. To achieve this, it’s essential to understand **Tick**, a core concept in game engines. Tick functions as the engine's heartbeat, driving all real-time updates.
 
 Tick involves two primary processes: logic updates and render updates. **Tick Logic** handles real-time calculations that define the behavior of the game world, such as character movement, physics interactions, AI decision-making, and changes in the game's state. **Tick Render** focuses on visual updates, ensuring the game environment, characters, and animations are drawn smoothly and accurately to synchronize with the underlying logic.
@@ -101,7 +101,7 @@ Some modules, like rendering pipelines, are clearly part of the engine. These fo
 The question arises: should such specific functionality be part of the engine or remain in the game’s code? The answer often varies between engines and development teams, leading to debates about what belongs to the engine and what should be left to the game layer. This division within the functional layer highlights its complexity and will be an ongoing focus in exploring game engine design.
 ![13](/static/images/games104_02/13.png)
 
-##### Multicore Era in Game Engine Architecture
+### Multicore Era in Game Engine Architecture
 Modern computer architecture has transitioned from single-core to multicore processing, fundamentally shaping game engine design. Early game engines were single-threaded, with all tasks running sequentially. As multicore processors became standard, engines adopted multithreading, initially separating tasks like logic updates and rendering into different threads, alongside additional threads for operations such as asset loading.
 
 Commercial engines like Unity and Unreal have advanced this further, isolating easily parallelizable computations—such as physics simulations and animations—into separate threads. This evolution leads to architectures capable of distributing tasks across multiple cores more effectively. The future lies in breaking tasks into atomic units, often referred to as **jobs**, which can be dynamically assigned to any available core. This approach maximizes CPU utilization, regardless of the number of cores, ensuring each core is consistently active.
@@ -109,9 +109,9 @@ Commercial engines like Unity and Unreal have advanced this further, isolating e
 Implementing such a system is complex due to **dependency management**, where tasks rely on the outcomes of preceding operations. For instance, animating a character's hand to trigger a particle effect requires the animation system to calculate the hand's position before the particle system can activate. Managing these dependencies without errors is a critical challenge in designing efficient multicore architectures.
 ![14](/static/images/games104_02/14.png)
 
-### Core Layer
+## Core Layer
 In the core layer, the **math library** often draws the most attention. It serves as the foundation for essential computations in the game engine
-##### Math Library
+### Math Library
 The various mathematical computations in the functional layer rely on the support provided by the core layer of a game engine. The core layer typically focuses on fundamental operations and avoids overly complex mathematics. Basic linear algebra—such as vector and matrix operations—is sufficient to meet the majority of the requirements for modern game engines.
 ![15](/static/images/games104_02/15.png)
 
@@ -120,7 +120,7 @@ In game engines, much of the mathematical computation revolves around matrix and
 This concept aligns with the capabilities provided by CPU manufacturers, who have designed their architectures to leverage SIMD for efficiency. By using a single ALU (Arithmetic Logic Unit) to perform multiple calculations in parallel, SIMD significantly accelerates common operations in a game engine's math library. This technology has become a standard optimization technique in modern game engine development, ensuring both speed and precision in essential computations.
 ![16](/static/images/games104_02/16.png)
 
-##### Data Structure and Memory management
+### Data Structure and Memory management
 Beyond the math library, the core layer must also include implementations of various commonly used data structures. While the C++ Standard Library (STL) provides a broad range of data structures, some of its implementations are not optimized for the specific performance requirements of game engines.
 
 Here’s an interesting detail about Vector, a common data structure. In the standard C++ implementation, when a vector exceeds its initial capacity (e.g., from 100 to 101 elements), it typically resizes by doubling its allocated space. While this approach minimizes resizing frequency, it has drawbacks.
@@ -146,12 +146,12 @@ Modern game engine memory management, even with advanced features like those in 
 The core layer is the foundation of the entire game engine, demanding exceptionally high code quality and minimal modifications under most circumstances.
 ![19](/static/images/games104_02/19.png)
 
-### Platform Layer
+## Platform Layer
 The platform layer is critical for ensuring that games can run seamlessly across different systems, as it abstracts platform-specific differences and standardizes functionality. For instance, a game developed on Windows faces challenges running on Mac due to differences like **file path formats** or **graphics APIs** such as DirectX, Metal, or Vulkan. The **Render Hardware Interface (RHI)** addresses these challenges by encapsulating hardware-specific variations into a unified interface. 
 However, creating this layer is complex, requiring deep optimization for each platform's unique features, such as varying CPU architectures or specialized hardware like the PS3's SPUs. While often overlooked, the platform layer significantly impacts a game engine's performance and is essential for building complex, high-quality games.
 ![20](/static/images/games104_02/20.png)
 
-### Tool Layer
+## Tool Layer
 A game engine can be divided into two main components: the **real-time runtime layer** and the **tools layer**. The tools layer is discussed last because it isn't part of the runtime.
 
 Game engines are typically written in C++ to achieve the highest runtime efficiency, as they need to operate in real-time. However, the tools layer is much more flexible in terms of development approach. Since it **prioritizes development efficiency over runtime performance**, developers can use a variety of technologies. C++ with Qt is a popular choice for creating interfaces, but C#, or even web-based solutions like HTML5, are equally viable depending on preferences and project requirements.
@@ -160,7 +160,7 @@ Game engines are typically written in C++ to achieve the highest runtime efficie
 In addition to the game engine's own development tools, external software and tools are often used to create assets that need to be imported into the engine. This requires an **asset conditioning pipeline**, which provides a unified workflow for integrating various resources into the engine. Together, the editor and the asset conditioning pipeline form the tools layer of a game engine.
 ![22](/static/images/games104_02/22.png)
 
-### Why Layered Architecture?
+## Why Layered Architecture?
 The purpose of layering in a game engine is to decouple different types of code, enabling better management of the system's complexity.
 
 > [!NOTE]
