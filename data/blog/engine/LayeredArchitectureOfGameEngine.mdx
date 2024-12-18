@@ -168,6 +168,7 @@ The purpose of layering in a game engine is to decouple different types of code,
 For example, the platform layer is highly stable, with its code rarely changing over the years. In contrast, the functionality layer can be adjusted more frequently, while the tools layer evolves almost daily to accommodate new features or tools. This hierarchy ensures flexibility at the top and stability at the bottom, which is a key advantage of layered structures. When addressing new requirements, it’s essential to identify the appropriate layer for the task rather than hastily implementing algorithms.
 
 Aspiring game engine developers often focus on creating specific features with exceptional quality, but systematic training emphasizes the importance of understanding which layer a feature belongs to. 
+
 > [!IMPORTANT]
 > A critical practice in layered architecture is restricting inter-layer calls: <br />
 > upper layers can call functionalities in lower layers, but lower layers should never call upwards. 
