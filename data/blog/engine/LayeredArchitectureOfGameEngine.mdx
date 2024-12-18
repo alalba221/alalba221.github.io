@@ -89,6 +89,7 @@ Tick involves two primary processes: logic updates and render updates. **Tick Lo
 
 > [!IMPORTANT]
 > It is important to note that logic calculations always precede rendering
+
 Tick Logic simulates the game's world by calculating physics, updating object states, and managing interactions. It operates independently of rendering, ensuring that the state of the world is consistent, whether or not it is being displayed. For example, determining whether one character hits another or updating a player's position based on input is part of this process.
 
 Tick Render follows the logic step to visualize the game's state. It takes the data produced by the logic and creates the images players see, such as drawing characters, applying lighting, or showing visual effects. Rendering relies entirely on the logic results to display an accurate and engaging representation of the game world.
