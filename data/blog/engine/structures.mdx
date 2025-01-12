@@ -1,0 +1,173 @@
+---
+title: 'Engine Structure'
+date: '2025-01-11'
+lastmod: '2025-01-11'
+tags: ['gameengine']
+draft: false
+summary: 'log system.'
+authors: ['default']
+layout: PostLayout
+<!-- canonicalUrl: https://tailwind-nextjs-starter-blog.vercel.app/blog/introducing-tailwind-nextjs-starter-blog -->
+---
+
+<TOCInline toc={props.toc} />
+
+# Source
+
+## Editor
+
+### Asset
+
+#### `asset_ui.cpp/h`
+
+### Base
+
+#### `editor_ui.cpp/h`
+
+### Log
+
+#### `log_ui.cpp/h`
+
+### Menu
+
+#### `menu_ui.cpp/h`
+
+### Property
+
+#### `property_ui.cpp/h`
+
+### Resource
+
+#### `png` (directory)
+
+### Simulation
+
+#### `simulation_ui.cpp/h`
+
+### World
+
+#### `world_ui.cpp/h`
+
+### Miscellaneous
+
+#### `editor.cpp/h`
+
+#### `main.cpp`
+
+---
+
+## Runtime
+
+### Core
+
+#### Base
+
+##### `macro.h`
+
+#### Log
+
+##### `log_system.cpp/h`
+
+#### Math
+
+##### `bounding_box.cpp/h`
+
+##### `transform.cpp/h`
+
+#### Vulkan
+
+##### `vulkan_rhibounding_box.cpp/h`
+
+##### `vulkan_util.cpp/h`
+
+### Function
+
+#### Framework
+
+##### Component
+
+###### `component.h`
+
+###### `static_mesh_component.cpp/h`
+
+##### Entity
+
+###### `entity.cpp/h`
+
+##### World
+
+###### `world.cpp/h`
+
+###### `world_manager.cpp/h`
+
+#### Global
+
+##### `runtim_context.cpp/h`
+
+#### Render
+
+##### `render_data.cpp/h`
+
+##### `render_system.cpp/h`
+
+##### `window_system.cpp/h`
+
+###### Pass
+
+####### `base_pass.cpp/h`
+####### `render_pass.cpp/h`
+####### `ui_pass.cpp/h`
+
+### Platform
+
+#### Container
+
+##### `ts_queue.h`
+
+#### File
+
+##### `file_system.cpp/h`
+
+#### String
+
+##### `string_util.cpp/h`
+
+#### Timer
+
+##### `timer.cpp/h`
+
+### Resource
+
+#### Asset
+
+##### `animation.cpp/h`
+
+##### `asset_manager.cpp/h`
+
+##### `material.cpp/h`
+
+##### `skeletal_mesh.cpp/h`
+
+##### `skeleton.cpp/h`
+
+##### `static_mesh.cpp/h`
+
+##### `texture_2d.cpp/h`
+
+##### `texture_cube.cpp/h`
+
+###### Base
+
+####### `asset.cpp/h`
+####### `bone.cpp/h`
+####### `mesh.cpp/h`
+####### `sub_mesh.cpp/h`
+####### `texture.cpp/h`
+
+#### Config
+
+##### `config_manager.cpp/h`
+
+#### Shader
+
+##### `shader_manager.cpp/h`

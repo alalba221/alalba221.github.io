@@ -1,0 +1,471 @@
+---
+title: 'C++ Templates 1-Basic'
+date: '2024-12-16'
+lastmod: '2024-12-16'
+tags: ['cpp', 'template']
+draft: false
+summary: ' summary'
+authors: ['default']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} />
+
+> [!NOTE]
+> This is the reading notes for `C++ Templates (2nd Edition)`.
+
+# Function Templates
+Example of Function Template:
+```cpp
+template <typename T>
+T Sum(T a, T b) {
+    return a + b;
+}
+```
+Using the Template:
+
+```cpp
+Sum(1, 2);       // OK, the template automatically deduces T as int
+Sum(1l, 2l);     // OK, the template automatically deduces T as long
+Sum(3.12, 5.18); // OK, the template automatically deduces T as double
+```
+> [!WARNING]
+> Template parameters can `decay` but cannot undergo implicit type conversion
+```cpp
+Sum(3.12f, 5.18); // Error, the first argument is float, the second is double. Cannot deduce T.
+Sum(1, 2.3);      // Error, the first argument is int, the second is double. Cannot deduce T.
+```
+In such cases, you can explicitly specify the template parameter:
+```cpp
+Sum<int>(1, 2.3); // OK, 2.3 is converted to int
+```
+
+# Two-Phase Translation
+Template compilation follows a **two-phase** process.
+1. Syntax Check **Without** Template Parameters
+    1. Syntax errors, such as missing semicolons, are detected.
+    1. Errors in statements **not dependent on template parameters** are also detected.
+    1. `static_assert` that does **not depend on template parameters** is executed immediately.
+1. If the template is instantiated, the actual type will replace the template parameter `T`, and the compiler will recheck the template syntax for correctness.
+
+For example, consider the following code:
+```cpp
+template <typename T>
+void foo(T t) {
+    static_assert(false);            // Error: This static_assert does not depend on T, so it triggers immediately.
+    static_assert(T == 3);           // OK: This static_assert depends on T and is delayed until instantiation.
+    std::cout << T->GetName();       // OK: This statement depends on T and is checked in Phase 2.
+    std::cout << 3;                  // Error: This statement does not depend on T, so it’s checked in Phase 1.
+}
+
+```
+To successfully instantiate this template, the provided type T must satisfy the following conditions:
+- It must support the operator== comparison with an integer.
+- It must have a GetName() member function.
+This effectively constrains the types that can use the template, enforcing certain operations (instead of relying on inheritance).
+
+This gives us a new idea: imagine we now need to write a memory reuse pool:
+```cpp
+template <typename T>
+class Pool final {
+public: 
+    T* Create() {
+        T* element;
+        if (cache_.empty()) {
+            element = cache_.top();
+            cache_.pop();
+            element->Reset();
+        } else {
+            element = new T;
+            element->Reset();
+            elements_.push_back(element);
+        }
+        return element;
+    }
+
+    void Destroy(T* element) { /* ... */ }
+
+private:
+    std::vector<T*> elements_;
+    std::stack<T*> cache_;
+};
+```
+This pool places all unused objects into `cache_`. When the `Create()` function is called, it first checks whether there are elements in `cache_`. If so, it retrieves one, calls its `Reset()` function to reset the object, and then returns it; otherwise, it creates a new object using new.
+It can be seen that, to successfully instantiate this template class, the type `T` must satisfy two conditions:
+- It must have a default constructor, beacuse of `new T`.
+- It must have a `Reset()` member function, and Pool must be able to access this function (this means if it is private, you need to declare Pool as a friend).
+In this way, any class that meets the above conditions can use this memory pool. If the conditions are not met, a compile-time error will occur.
+
+If you use object-oriented programming, you might need a base class:
+```cpp
+class PoolElement {
+public:
+    virtual ~PoolElement();
+    virtual void Reset() = 0;  
+};
+```
+Then, every class that needs to be stored in the memory pool must inherit from this base class. However, this approach has some drawbacks:
+1. New classes must remember to inherit from the base class.
+1. Virtual functions introduce performance overhead, especially as the inheritance chain grows longer.
+Using templates avoids these problems. Templates are undoubtedly a more generic and efficient method."
+
+# Template Argument Deduction
+### Template Argument Deduction for Function Parameters (Decay Rules)
+When template parameters are used as function parameters, there are some peculiar deduction rules:
+- Narrowing implicit conversions are not allowed.
+
+    ```cpp
+    template <typename T>
+    void foo(T a, T b);
+
+    foo(1, 2);          // OK, T is deduced as int.
+    foo(1, 2.12);       // Error: 1 is int, 2.12 is double, cannot deduce T.
+    foo(1.23, 2.18f);   // Error: 1.23 is double, 2.18f is float, cannot deduce T.
+    ```
+- When the template parameter is a reference (`T&`), the compiler deduces the exact type of the argument, including qualifiers like `const` and `volatile`, and no decay occurs.
+- When `T` is used (value), the `const` and `volatile` qualifiers, as well as references in the argument, are **ignored**; arrays and functions are converted to their corresponding pointers (this rule is called **decay**).
+    ```cpp
+    // When the template parameter is a reference (T&), 
+    // the compiler deduces the exact type of the argument, 
+    // including qualifiers like const and volatile, and no decay occurs.
+    template <typename T> void fooRef(T& a) {}
+
+    int a;
+    // Basic Type: fooRef(a) deduces T as int, and the function parameter becomes int&.
+    fooRef(a); // T -> int, fooRef(T&) -> fooRef(int&)
+    
+    // const Qualifiers Preserved: fooRef(b) deduces T as const int, 
+    // and the function parameter becomes const int&.
+    const int b;
+    fooRef(b); // T -> const int, fooRef(T&) -> fooRef(const int&)
+
+    // Arrays Are Not Decayed: fooRef(arr) deduces T as int[32], and the array type remains intact.
+    int arr[32];
+    fooRef(arr); // T -> int[32], fooRef(T&) -> fooRef((int[32])&)
+
+    // When the template parameter is passed by value (T a), 
+    // the compiler applies special rules:
+    template <typename T> void fooVal(T a) {}
+
+    // References are removed.
+    int& c = a;
+    fooVal(c); // T -> int, fooVal(T) -> fooVal(int)
+
+    // Top-level const and volatile qualifiers are ignored.
+    const int& b = a;
+    fooVal(b); // T -> int, fooVal(T) -> fooVal(int)
+
+    // Arrays and functions decay into their corresponding pointer types.
+    int arr[32];
+    fooVal(arr); // T -> int*, fooVal(T) -> fooVal(int*)
+    ```
+**Question**: What happens when `const char* const` is passed to a template as a value parameter?
+
+**Answer**: It decays into `const char*`.
+
+**Explanation**
+1. `const char* const`:
+    - The first const makes the **value pointed** to (char) immutable.
+    - The second const makes the **pointer itself** immutable.
+1. Template Argument Deduction for Value Parameters:
+    - When a template takes a value parameter (T), the following happens:
+        - Top-level `const` qualifiers are removed (on the pointer itself).
+        - Arrays and functions decay to pointers.
+
+Thus, for `const char* const`, the top-level const on the pointer is removed, but the const on the value pointed to remains. In short, the passed parameter will always **make theirselves mutable**.
+
+### Template Argument Deduction for Return Types
+You can add an additional template parameter for the return type:
+```cpp
+template <typename T1, typename T2, typename Ret>
+Ret Sum(T1& a, T2& b) {
+    return a + b;
+}
+```
+Alternatively, you can use advanced return type deduction.
+
+In C++11, you can deduce the return type using `auto` and `decltype`:
+```cpp
+template <typename T1, typename T2>
+auto Sum(T1& a, T2& b) -> decltype(T1() + T2()) {
+    return a + b;
+}
+```
+> [!NOTE]
+> `decltype(T1() + T2())` deduces the return type based on the expression `a + b`.
+
+In C++14, you can simplify the syntax by directly using `auto` for the return type:
+```cpp
+template <typename T1, typename T2>
+auto Sum(T1& a, T2& b) {
+    return a + b;
+}
+```
+This eliminates the need for `decltype` and the `trailing return type` syntax.
+
+# Default Template Parameters
+Just like function parameters, template parameters can have default values. The default values must appear last in the template parameter list.
+```cpp
+template <typename T1, typename T2 = int>
+void foo();
+```
+> [!NOTE]
+> The New Usage of `typename`
+```cpp
+struct NewStruct {
+  using MyString = std::string;  
+};
+
+template <typename T1>
+void foo() {
+    typename T1::MyString* mystring; // here!
+    /* ... */
+}
+```
+Why add `typename` before a variable declaration? 
+The need for `typename` arises from the **ambiguity** in C++ parsing:
+Now consider the following template:
+```cpp
+template <typename T1>
+void foo() {
+    T1::MyString* mystring; // Ambiguity!
+}
+```
+The compiler sees T1::MyString* and becomes confused:
+- Is `T1::MyString` a type (e.g., `std::string`) and `*` means a pointer?
+- Or is `T1::MyString` a `static` variable and `*` represents multiplication?
+
+To resolve this ambiguity, C++ requires you to use the `typename` keyword to clearly indicate that `T1::MyString` is a type:
+
+# Template Function Overloading
+A template function can overload a non-template function with the exact same signature:
+```cpp
+void foo(int a, int b);
+
+template <typename T>
+void foo(T a, T b);
+```
+When calling the function:
+- The non-template function is preferred by default.
+- If you want to explicitly call the template version, you need to add the template specifier.
+```cpp
+foo(1, 2);     // Calls the normal (non-template) function
+foo<>(1, 2);   // Calls the template function
+```
+
+However, when the arguments differ, the compiler will choose the most precise match, whether it is the template or non-template function:
+```cpp
+void foo(int, int);
+
+template <typename T1, typename T2>
+void foo(T1, T2);
+
+foo(1, 2);      // Calls the normal (non-template) function because it's the best match
+foo(1, 2.2);    // Calls the template function because no precise non-template match exists
+```
+### 1. Why Does Non-Template Take Precedence?
+In C++, when the compiler resolves a function call:
+- If there is an exact non-template match, it takes precedence over a template function.
+- Template functions are considered more generic and will only be chosen if no better non-template function exists.
+
+### When Does the Template Function Win?
+If the arguments provided do **not exactly match** any non-template function, the compiler will choose the template function.
+
+# Pass by Value or Pass by Reference
+In general, passing by value is better because:
+- Simpler syntax.
+- The compiler can optimize better.
+- Move semantics can reduce copies.
+- In some cases, there may be no copies or moves at all.
+
+Special Considerations for Template Functions
+- Templates can be used for both simple types and complex types, so choosing pass by value is a more generic and simpler approach.
+- Even when using pass-by-value, you can still explicitly pass references by using `std::ref()` and `std::cref()`:
+    ```cpp
+    #include <iostream>
+    #include <functional> // for std::ref and std::cref
+
+    template <typename T>
+    void foo(T t) {
+        std::cout << t << std::endl;
+    }
+
+    int main() {
+        int x = 42;
+        foo(std::ref(x));  // Passes a reference as a value
+        return 0;
+    }
+    ```
+- Passing by reference can cause issues with string literals and ordinary arrays: 
+    While passing by value can also have issues, the problems are greater when passing by reference.
+    ```cpp
+    template <typename T>
+    void foo(T& t) {}
+
+    foo("hello"); // Error: Cannot bind string literal to non-const reference
+    ```
+# Class Templates
+Class templates are very similar to function templates; you simply use the template parameters within the class.
+```cpp
+template <typename T>
+class Person {
+    T info;
+    std::string name;
+    int height;
+
+public:
+    T& GetInfo() { return info; }
+};
+```
+When a template class is instantiated, **not all member functions are instantiated** immediately. Only the **member functions that are actually used** will be instantiated.
+Therefore, even if the type `T` does not support certain operations, the class template can still be instantiated as long as you do not call the member functions that require those unsupported operations.
+
+### Friend Functions
+You can use different template parameters to declare friend functions.
+
+You can declare a friend function template inside a class template, using a different template parameter:
+```cpp
+template <typename T>
+class Person {
+    T info;
+
+public:
+    Person(T value) : info(value) {}
+
+    template <typename U>
+    friend std::ostream& operator<<(std::ostream&, const Person<U>& p);
+};
+
+template <typename T>
+std::ostream& operator<<(std::ostream& o, const Person<T>& p) {
+    o << p.info;
+    return o;
+}
+```
+
+Or You can declare the function template first, and then declare it as a friend inside the class:
+```cpp
+// Forward declaration of the class template
+template <typename T> class Person;
+
+// Forward declaration of the operator<< function
+template <typename T>
+std::ostream& operator<<(std::ostream&, const Person<T>&);
+
+// Class definition
+template <typename T>
+class Person {
+    friend std::ostream& operator<< <T>(std::ostream&, const Person<T>&);
+};
+```
+> [!NOTE]
+> The `<T>` specifies that we are referring to the specialization of the `operator<<` function template for this class. <br />
+> This is required to avoid ambiguity when multiple overloads or template instances of `operator<<` exist.
+
+### Type Deduction
+Before C++17, all template parameters had to be explicitly specified (unless default template parameters were provided). Starting with C++17, the compiler can automatically deduce template parameters.
+
+### Deduction Guides
+With **deduction guides**, we can correct or customize the existing template deduction rules:
+```cpp
+Person(const char*) -> Person<std::string>;
+```
+This tells the compiler:
+- When the template parameter is `const char*`, automatically deduce the type as `std::string`.
+- This statement must appear in the same scope or namespace as the definition of the template class.
+
+Even for aggregate classes (classes **without explicitly defined constructors, inheritance, private/protected non-static members, virtual functions, or virtual/private/protected base classes**), deduction guides can be applied.
+```cpp
+template <typename T>
+struct Value {
+    T value1;
+    std::string value2;
+};
+
+Value(const char*, const char*) -> Value<std::string>;
+
+// Usage
+Value value = {"hello", "template"};
+```
+
+# Non-Type Template Parameters
+A **non-type parameter** in a template is a template parameter that is a **value** rather than a type:
+```cpp
+template <int ID>
+void GetID() { 
+    return ID; 
+}
+```
+> [!NOTE]
+> `GetID<1>` and `GetID<2>` are not the same function. <br />
+> Unlike passing ID as a regular function parameter, they are two separate function instantiations with distinct values for ID.
+
+# Partial Specialization and Full Specialization
+
+### Partial Specialization
+Partial specialization fixes some (but not all) template parameters.
+```cpp
+template <typename T, typename U>
+class Test {
+    T a;
+    U b;
+};
+
+// Partial specialization: second parameter fixed to `int`
+template <typename T>
+class Test<T, int> {
+    T a;
+    int b;
+};
+```
+In this example:
+- The general template Test has two parameters, `T` and `U`.
+- The partial specialization fixes `U` as `int`, while `T` remains flexible.
+- `Test<T, int>` is a specialized version of the general template.
+
+### Full Specialization
+Full specialization fixes all template parameters.
+At this point, the template is treated like a **normal global function or class**.
+```cpp
+template <typename T1, typename T2>
+void foo(T1, T2);
+
+// Full specialization
+template <>
+void foo<int, float>(int a, float b) {
+    // Specialized implementation
+}
+```
+
+> [!IMPORTANT]
+> Only **class templates** can be **partially specialized**, Function templates **cannot** be partially specialized. <br />
+> Both class templates and function templates can be fully specialized.
+
+# Handling String Literals and Raw Arrays
+The difficulty in handling string literals and raw arrays lies in deciding whether the template parameter should use `T` or `T&`, because this involves the `decay` issue.
+
+1. Using `T`:
+    When you use `T` as the template parameter, arrays decay into pointers. This makes it difficult to distinguish whether the argument passed was an array or a pointer.
+1. Using `T&`:
+    Using `T&` avoids decay, but it can lead to mismatched parameter types, especially with string literals of different sizes.
+
+    ```cpp
+    template <typename T>
+    void concat(T& arr1, T& arr2);
+
+    // Call:
+    concat("hello", "world!"); // ERROR!
+    ```
+    > [!TIP]
+    > Arrays in C++ are different types if their sizes are different
+    "hello" has the type `const char[6]` (including the null terminator)."world!" has the type `const char[7]`. Since the two types are different, the template function fails to instantiate due to **parameter mismatching**.
+
+Use `std::enable_if` to write a specialized version for arrays:
+```cpp
+template <typename T,
+          typename = std::enable_if_t<std::is_array_v<T>>>
+void foo(T& a); // for array
+
+template <typename T>
+void foo(T& a);  // for non array
+```

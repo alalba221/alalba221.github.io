@@ -1,0 +1,48 @@
+---
+title: 'C++ Tidbits'
+date: '2025-01-08'
+lastmod: '2024-01-08'
+tags: ['cpp', '']
+draft: false
+summary: ' summary'
+authors: ['default']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} />
+
+# filesystem
+
+## `std::filesystem::absolute(path)`
+
+- This function attempts to convert the provided path into an absolute path.
+- If the path is relative, it resolves it relative to the current working directory.
+- If the path is already absolute, it simply returns the same path.
+
+# Run cmd
+
+```cpp
+std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd, "r"), _pclose);
+```
+
+- `std::unique_ptr<FILE, decltype(&_pclose)>:`
+
+  - This declares a std::unique_ptr that manages a FILE\* resource.
+  - The second template parameter, decltype(&\_pclose), specifies the type of the custom deleter function, which is \_pclose in this case.
+  - `_pclose` is used to close the pipe created by \_popen.
+
+- `_popen(cmd, "r"):`
+
+  - `_popen` is a Microsoft-specific function (used on Windows) that opens a process by creating a pipe, for example, to execute a shell command.
+  - The `cmd` is the command to execute.
+  - The `"r"` mode specifies that the pipe is opened for reading (standard output of the command).
+
+- `_pclose`:
+
+  - `_pclose` is a corresponding function to close the pipe opened by \_popen.
+
+- `std::unique_ptr` Construction:
+
+  - The `std::unique_ptr` is initialized with:
+  - The `FILE*` pointer returned by `_popen`.
+  - The `_pclose` function, which acts as the custom deleter.
