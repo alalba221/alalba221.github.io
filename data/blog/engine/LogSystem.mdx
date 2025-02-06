@@ -1,0 +1,69 @@
+---
+title: 'Log System'
+date: '2024-12-16'
+lastmod: '2024-12-16'
+tags: ['gameengine', 'spdlog']
+draft: false
+summary: 'log system.'
+authors: ['default']
+layout: PostLayout
+<!-- canonicalUrl: https://tailwind-nextjs-starter-blog.vercel.app/blog/introducing-tailwind-nextjs-starter-blog -->
+---
+
+<TOCInline toc={props.toc} />
+
+`std::cerr` is not very flexible: it's hard to format, lacks log levels, cannot save logs, and doesn't allow control over output to either the console or a file. So, before we start writing our asset manager, let’s first improve our LogSystem—sharpening the axe doesn’t delay the work of cutting firewood.
+
+# Importing spdlog
+Here, we choose to use the third-party library spdlog and wrap it with simple macros for easier usage.
+spdlog is a header-only library, making it both simple and efficient to use.
+To learn more about spdlog, you can refer directly to the [official documentation](https://github.com/gabime/spdlog/wiki).
+Integrating spdlog into your project is very straightforward:
+
+### Add a Git Repository as a Submodule.
+```git submodule add https://github.com/gabime/spdlog.git external/spdlog```
+### Add it to the CMakeLists.txt file under the external folder.
+```cmake
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# Ensures the spdlog target is only added once to prevent duplicate target definitions.
+if (NOT TARGET spdlog) # Checks whether a target named spdlog has already been defined.
+    option(SPDLOG_BUILD_EXAMPLE "" OFF)
+    option(SPDLOG_INSTALL "" OFF)
+    add_subdirectory(spdlog)
+
+    # The FOLDER property places the target into the external/spdlog folder in IDEs like Visual Studio.
+    set_target_properties(spdlog PROPERTIES FOLDER external/spdlog)
+endif()
+```
+# Wraping spdlog as LogSystem
+**LogSystem** is part of the `core layer`—it provides fundamental library functionalities. Therefore, we add a log folder inside core to house our `log_system.cpp/h` files.
+The most important variable in LogSystem is an `spdlog::logger` class member named `m_logger`. A logger is the log object, and each logger contains a vector of `sink`s. A `sink` is a target for log output. Each sink can be assigned a priority level, and the `logger` itself can also have a priority level.
+
+In the constructor, we create a multi-threaded `sink` with color output and bind it to an `asynchronous logger`. However, in reality, we only set up a single thread. The output format is set using the `set_pattern` function. You can directly refer to the spdlog [Custom Formatting](https://github.com/gabime/spdlog/wiki/3.-Custom-formatting#pattern-flags) for details. The syntax is based on the fmt library, and you can find more in [fmt syntax](https://fmt.dev/11.0/syntax/).
+> [!NOTE]
+> **Asynchronous Logger** (async logger): When using asynchronous logging, log output statements and business logic statements do not run on the same thread. Instead, a dedicated thread is used for log output operations, allowing the main thread handling business logic to proceed without waiting.
+
+We use an enum class to define log levels:
+
+- debug: Used to record information valuable to developers.
+- info: Informational messages such as service start/stop events or configuration assumptions.
+- warn: Warnings about potential errors, such as switching from a primary server to a backup server, retrying operations, or losing auxiliary data.
+- error: Errors that do not prevent the program from continuing to run. Such errors may cause the program to deviate from the expected behavior from the "operator's perspective."
+- fatal: Errors severe enough to cause the program to exit, such as accessing illegal memory. In this case, we need to display a "fatal error" message and attempt to save our data (you can refer to Wikipedia for more on fatal errors).
+- In the log member function, we use the logger wrapper to implement logging functionality.
+
+It’s worth noting that for fatal errors, we can terminate the program by throwing an error with throw `std::runtime_error`.
+
+# Wraping LogSystem as Macros
+```cpp
+#define LOG_HELPER(LOG_LEVEL, ...) \
+g_runtime_global_context.m_logger_system->log(LOG_LEVEL, "[" + std::string(__FUNCTION__) + "] " + __VA_ARGS__);
+// __FUNCTION__: 目前所在函数
+#define LOG_DEBUG(...) LOG_HELPER(LogSystem::LogLevel::debug, __VA_ARGS__);
+#define LOG_INFO(...) LOG_HELPER(LogSystem::LogLevel::info, __VA_ARGS__);
+#define LOG_WARN(...) LOG_HELPER(LogSystem::LogLevel::warn, __VA_ARGS__);
+#define LOG_ERROR(...) LOG_HELPER(LogSystem::LogLevel::error, __VA_ARGS__);
+#define LOG_FATAL(...) LOG_HELPER(LogSystem::LogLevel::fatal, __VA_ARGS__);
+```
+Finally, you only need to create the `logger` during the initialization of the global context
+

@@ -1,0 +1,345 @@
+---
+title: 'Engine Structure'
+date: '2025-01-11'
+lastmod: '2025-01-11'
+tags: ['gameengine']
+draft: false
+summary: 'log system.'
+authors: ['default']
+layout: PostLayout
+<!-- canonicalUrl: https://tailwind-nextjs-starter-blog.vercel.app/blog/introducing-tailwind-nextjs-starter-blog -->
+---
+
+<TOCInline toc={props.toc} />
+
+# Source
+
+```plaintxt
+source
+├── editor/
+│   ├── asset/
+|	|	└── asset_ui.cpp/h
+│   ├── base/
+|	|	└── editor_ui.cpp/h
+│   ├── log/
+|	|	└── log_ui.cpp/h
+│   ├── menu/
+|	|	└── menu_ui.cpp/h
+│   ├── property/
+|	|	└── property_ui.cpp/h
+│   ├── resource/
+|	|	└── png
+│   ├── simulation/
+|	|	└── simulation_ui.cpp/h
+│   ├── world/
+|	|	└── world_ui.cpp/h
+|	├── editor.cpp/h
+|	└── main.cpp
+└── runtime/
+	├── core/
+	│   ├── base/
+	|	|	└── macro.h
+	│   ├── log/
+	|	|	└── log_system.cpp/h
+	│   ├── math/
+	|	|	├── bounding_box.cpp/h
+	|	|	└── transform.cpp/h
+	│   └── vulkan/
+	|		├── vulkan_rhi.cpp/h
+	|		└── vulkan_util.cpp/h
+	├── function/
+	│   ├── framework/
+	|	│   ├── component/
+	|	|	│   ├── component.h
+	|	|	│   └── static_mesh_component.cpp/h
+	|	│   ├── entity/
+	|	|	│   └── entity.cpp/h
+	|	│   └── world/
+	|	|	│   └── world.cpp/h
+	|	|	│   └── world_manager.cpp/h
+	│   ├── global/
+	|	|	└── runtim_context.cpp/h
+	│   └── render/
+	|		├── render_data.cpp/h
+	|		├── render_system.cpp/h
+	|		├── window_system.cpp/h
+	|		└── pass/
+	|			├── base_pass.cpp/h
+	|			├── render_pass.cpp/h
+	|			└── ui_pass.cpp/h
+	├── paltform/
+	│   ├── container/
+	|	|	└── ts_queue.h
+	│   ├── file/
+	|	|	└── file_system.cpp/h
+	│   ├── string/
+	|	|	└── string_util.cpp/h
+	│   └── timer/
+	|		└── timer.cpp/h
+	└── resource/
+		├── asset/
+		│   ├── animation.cpp/h
+		│   ├── asset_manager.cpp/h
+		│   ├── material.cpp/h
+		│   ├── skeletal_mesh.cpp/h
+		│   ├── skeleton.cpp/h
+		│   ├── static_mesh.cpp/h
+		│   ├── texture_2d.cpp/h
+		│   ├── texture_cube.cpp/h
+		│   └── base/
+		|		├── asset.cpp/h
+		|		├── bone.cpp/h
+		|		├── mesh.cpp/h
+		|		├── sub_mesh.cpp/h
+		|		└── texture.cpp/h
+		├── config/
+		│   └── config_manager.cpp/h
+		└── shader/
+			└── shader_manager.cpp/h
+```
+
+## Editor
+
+### **Asset**
+
+- `asset_ui.cpp/h`
+
+### **Base**
+
+- `editor_ui.cpp/h`
+
+### **Log**
+
+- `log_ui.cpp/h`
+
+### **Menu**
+
+- `menu_ui.cpp/h`
+
+### **Property**
+
+- `property_ui.cpp/h`
+
+### **Resource**
+
+- `png`
+
+### **Simulation**
+
+- `simulation_ui.cpp/h`
+
+### **World**
+
+- `world_ui.cpp/h`
+
+### `editor.cpp/h` and `main.cpp`
+
+- **init()**
+  - 调用所有UI的**init()**
+  - 通过 [RederSystem::setConstructUIFunc](#RederSystem-setConstructUIFunc) 将 **UIPass** 的 [UIPass::m_construct_func](#UIPass-m_construct_func) 设置为
+    ```cpp
+     for (auto& editor_ui : m_editor_uis)
+    {
+        editor_ui->construct(); // 如何用IMGUI搭建UI界面
+    }
+    ```
+
+---
+
+## Runtime
+
+### engine.cpp/h
+
+---
+
+### Core
+
+- **Base**
+  - `macro.h`
+- **Log**
+  - <a id="LogSystem"></a>**log_system.cpp/h**
+- **Math**
+  - `bounding_box.cpp/h`
+  - `transform.cpp/h`
+- **Vulkan**
+
+  - **vulkan_rhi.cpp/h**：包含(除了renderpass，frambuffer)常见的vulkan概念。虽然包含了`vulkan_util.h` 但只是使用了vulkan与vma头文件
+
+    - <a id="VulkanRHICallbacks"></a> **VulkanRHICallbacks** 的成员 `m_callbacks`
+
+      1.  VulkanRHI 的 recordFrame 会调用 `VulkanRHICallbacks`的`on_record_frame_func`
+      1.  VulkanRHI 的 createSwapchainObjects 会调用 `VulkanRHICallbacks`的`on_create_swapchain_objects_func` 和 `on_destory_swapchain_objects_func`
+      1.  在 `render_system.cpp`的`Init()`中，三个函数分别设置成 `RenderSystem`中的对应函数
+          - [RenderSystem::onCreateSwapchainObjects](#RenderSystem-onCreateSwapchainObjects)
+          - [RenderSystem::onDestroySwapchainObjects](#RenderSystem-onDestroySwapchainObjects)
+          - [RenderSystem::onRecordFrame](#RenderSystem-onRecordFrame)
+
+    - <a id="VulkanRHI-init"></a> **init()**
+
+    - <a id="VulkanRHI-render"></a> **render()**
+
+      - <a id="VulkanRHI-waitFrame"></a> **waitFrame()**
+
+      - <a id="VulkanRHI-recordFrame"></a> **recordFrame()**
+
+      - <a id="VulkanRHI-recordFrame"></a> **submitFrame()**
+
+      - <a id="VulkanRHI-recordFrame"></a> **presentFrame()**
+
+  - **vulkan_util.cpp/h**
+    1. <a id="Buffer-Image"></a> 定义了`VmaBuffer`,`VmaImage`, `VmaImageView`,
+       `VmaImageViewSampler`, 包含 handle 和 allocation
+    1. 定义了与 instant command，buffer, image, image viewer, sampler相关的函数，创建verter/index buffer,拷贝
+
+---
+
+### Function
+
+- **Framework**
+
+  - **Component**
+    - `component.h`
+    - `static_mesh_component.cpp/h`
+  - **Entity**
+    - `entity.cpp/h`
+  - **World**
+    - `world.cpp/h`
+    - `world_manager.cpp/h`
+
+- **Global**
+
+  - **runtim_context.cpp/h**
+    创建以及初始化
+
+    - [Timer](#Timer)
+    - file system
+    - [log system](#LogSystem)
+    - [config manager](#ConfigManager)
+    - [window system](#WindowSystem)
+    - VulkanRHI
+    - [shader manager](#ShaderManager)
+    - asset manager
+    - world manager
+    - [render system](#RenderSystem)
+
+- **Render**
+
+  - **render_data.cpp/h**
+
+    - **VertPCO**:
+    - **FragPCO**:
+    - <a id="RenderData"></a>**RenderData**: - [vertexBuffer and IndexBuffer](#Buffer-Image) -
+      每一个**submesh**的index count 和 index offset
+    - **MeshRenderData**:
+      - [vertexBuffer and IndexBuffer](#Buffer-Image)
+      - 每一个**submesh**的index count 和 index offset
+      - vector of UBO's Descriptor and texture's descriptor
+      - Push Constant Object
+
+  - <a id="RenderSystem"></a>**render_system.cpp/h**
+
+    - <a id="RenderSystem-setConstructUIFunc"></a>**setConstructUIFunc(construct_ui_func)**
+
+      - Call [UIPass's setConstructFunc](<#UIPass-setConstructFunc(construct_ui_func)>)
+
+    - <a id="RenderSystem-init"></a>**init()**
+
+      - 初始化了 **BasePass** 和 **UIPass** 放入 **m_render_passes**
+      - 设置 VulkanRHI的 [VulkanRHICallbacks](#VulkanRHICallbacks)
+
+    - <a id="RenderSystem-tick"></a>**tick(delta_time)** :
+      调用[VulkanRHI::render](#VulkanRHI-render)
+
+    - <a id="RenderSystem-onCreateSwapchainObjects"></a> **onCreateSwapchainObjects**：
+
+      - 调用了[UIPass的 createResizableObjects](#UIPass-createResizableObjects) 创建 **framebuffer**
+
+    - <a id="RenderSystem-onDestroySwapchainObjects"></a> **onDestroySwapchainObjects**：这里是第一项的内容。
+
+    - <a id="RenderSystem-onRecordFrame"></a> **onRecordFrame(commandBuffer, flight_index)**：遍历
+      **m_render_passes**中所有的[renderpass](#RenderPass) 调用他们的 **record** 函数 。
+
+    - <a id="RenderSystem-setConstructUIFunc"></a> **setConstructUIFunc(function)**：
+    - <a id="RenderSystem-collectRenderDatas"></a> **collectRenderDatas()**：
+
+  - <a id="WindowSystem"></a>**window_system.cpp/h**
+  - <a id="RenderPass"></a>**Pass**
+
+    - **render_pass.cpp/h**
+
+    包含了 descriptor Pool, descriptor Set layout, pipeline and pipeline layout, renderpass Handle, vector of [RenderData](#RenderData)
+
+    - **base_pass.cpp/h**
+
+      - 初始化: 建立renderpass(subpass 和 attachments)，建立pipeline layout和pipeline
+      - 创建framebuffer: 创建了depth和color的image与imageview, 并用这两个创建了一个framebuffer
+      - 封装了Record: renderpass begin , renderpass end
+
+    - **ui_pass.cpp/h**
+      - <a id="UIPass-m_construct_func"></a>**m_construct_func**
+      - <a id="UIPass-setConstructFunc"></a>**setConstructFunc(construct_ui_func)**:{' '}
+      - 封装了Record: renderpass begin , renderpass end
+      - 初始化: 建立renderpass(subpass 和 attachments)，建立pipeline layout和pipeline
+      - 创建 framebuffers: 获得swap chain的 imageviews, 并创建对应数量的framebuffers
+
+---
+
+### Platform
+
+- **Container**
+  - `ts_queue.h`
+- **File**
+  - **file_system.cpp/h**
+- **String**
+  - `string_util.cpp/h`
+- **Timer**
+
+  - <a id="Timer"></a>**timer.cpp/h**{' '}
+
+        - <a id="TimerManager"></a>**TimerManager**:
+
+          - <a id="TimerManager-init"></a> **init**: Initializes the timer manager's state.
+
+          - <a id="TimerManager-tick"></a> **tick**: Advances time by a delta_time and processes timers,
+            executing their callback functions if their interval has elapsed.
+
+          - <a id="TimerManager-addTimer"></a> **addTimer**: Adds a timer with a specific interval and
+            callback function. Supports looping and immediate call for looping timers.
+
+          - <a id="TimerManager-removeTimer"></a> **removeTimer**: Removes a timer by its handle.
+
+          - <a id="TimerManager-getTime"></a> **getTime**: Returns the current tracked time of the
+            manager.
+
+        - <a id="StopWatch"></a>**StopWatch**:
+            - <a id="StopWatch-start"></a>**start**: Records the current time as the start time.
+            - <a id="StopWatch-stop"></a>**stop** : Records the current time as the end time and calculates elapsed time in milliseconds
+            - <a id="StopWatch-elapsedTimeMs"></a> **elapsedTimeMs**: Returns the elapsed time in seconds or milliseconds.
+
+---
+
+### resource
+
+- **asset**
+
+  - `animation.cpp/h`
+  - `asset_manager.cpp/h`
+  - `material.cpp/h`
+  - `skeletal_mesh.cpp/h`
+  - `skeleton.cpp/h`
+  - `static_mesh.cpp/h`
+  - `texture_2d.cpp/h`
+  - `texture_cube.cpp/h`
+  - **Base**
+    - `asset.cpp/h`
+    - `bone.cpp/h`
+    - `mesh.cpp/h`
+    - `sub_mesh.cpp/h`
+    - `texture.cpp/h`
+
+- **Config**
+
+  - <a id="ConfigManager"></a>**config_manager.cpp/h**
+
+- **Shader**
+  - <a id="ShaderManager"></a>**shader_manager.cpp/h**

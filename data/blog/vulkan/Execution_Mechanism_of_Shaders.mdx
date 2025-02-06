@@ -1,0 +1,243 @@
+---
+title: 'Execution Mechanism of Shaders'
+date: '2025-01-04'
+lastmod: '2025-01-04'
+tags: ['vulkan', 'shader']
+draft: false
+summary: ' summary'
+authors: ['default']
+layout: PostLayout
+---
+
+<TOCInline toc={props.toc} />
+
+# Execution Mechanism of Shaders
+
+![01](/static/images/vulkan_shader/01.png)
+
+## 1. **Input：** Attributes, Uniforms, Samplers (optional)
+
+- **a. Attributes**
+  Attributes represent data for each vertex.
+
+- **b. Uniforms**
+
+  - **b-1.** Uniforms are global read-only constants stored in the program's constant memory area.
+  - **b-2.** When both the Vertex Shader and Fragment Shader define a uniform with the same name and type, it becomes a global constant shared between both shaders, pointing to the same memory location.
+
+- **c. Samplers (optional)**
+  Samplers are a special type of uniform used to store texture data.
+
+- **d. Push Constants**
+  Push constants are used for values that are the same for all vertices in a single drawable object, such as:
+
+  - The basic transformation matrix of the object.
+  - The final transformation matrix of the object.
+
+- Additional Variables:
+  - **gl_VertexID:** An integer index representing the vertex currently being processed.
+  - **gl_InstanceID:** An integer index representing the instance to which the current vertex belongs. This value is always `0` when instancing is not used, and it becomes meaningful during instanced rendering.
+
+## 2. Output：Varying
+
+**Varying**
+
+- **a.** Varying variables serve as the interface between the Vertex Shader and the Fragment Shader, designed to enable functional information exchange between the two shaders.
+- **b.** They store output information from the Vertex Shader.
+- **c.** The Vertex Shader and Fragment Shader must define varying variables with the same name and type. If they do not match, a compilation error will occur (since they act as the shared information interface, and mismatches break the connection).
+
+## 3. **Temporary Variables**
+
+- **a.** Temporary variables are intermediate variables used during shader processing.
+- **b.** They store intermediate values generated as part of the shader's operations.
+- **c.** These variables are declared within functions or as local variables inside the shader.
+
+## 4. Buildin Output: `gl_Position`, `gl_FrontFacing`, `gl_PointSize`
+
+- **a. gl_Position** (highp vec4 variable)
+
+  - Represents the vertex position.
+  - It is the output value of the Vertex Shader and must be assigned a value.
+  - This variable is only effective when used in the Vertex Shader.
+
+- **b. gl_PointSize** (mediump float variable)
+
+  - Specifies the size of rasterized points in pixels.
+  - To change the size of rendered points, this variable must be used.
+  - It is only effective when used in the Vertex Shader.
+
+- **c. gl_FrontFacing** (bool variable)
+  - Indicates whether a surface is front-facing or back-facing.
+  - It is used to manage lighting effects, such as double-sided lighting in 3D objects.
+  - This variable can only be set in the Vertex Shader. It is read-only in the Fragment Shader.
+
+![02](/static/images/vulkan_shader/02.png)
+In the execution diagram of the Fragment Shader, the primary focus is on how the output of the Vertex Shader is directed as input to the Fragment Shader. Other details that are similar to the Vertex Shader are not covered here. Ultimately, the output of the Fragment Shader is the final color value.
+
+# How Input Information is Passed to Shaders
+
+## 1. Uniform Variables and Vertex Shader Input Variables
+
+In simple terms, the transfer of uniform variables and Vertex Shader input variables is accomplished through **Descriptor Sets**. Below is a more detailed explanation:
+![03](/static/images/vulkan_shader/03.png)
+![04](/static/images/vulkan_shader/04.png)
+
+To understand how data is passed and managed in Vulkan, let's introduce some fundamental concepts:
+
+### 1. DescriptorSetLayout
+
+DescriptorSetLayout describes the binding information for the uniform variables in a shader during a binding operation.
+
+Example in Vertex Shader:
+
+```glsl
+layout (binding = 0) uniform UBO {
+    mat4 projection;
+    mat4 modelview;
+    vec4 lightPos;
+    float locSpeed;
+    float globSpeed;
+} ubo;
+
+```
+
+Example in Fragment Shader:
+
+```glsl
+layout (binding = 1) uniform sampler2DArray samplerArray;
+```
+
+The `layout` specifies the organization of uniforms, indicating whether they are uniform blocks, samplers, or other types.
+Corresponding Vulkan Structure:
+
+```cpp
+typedef struct VkDescriptorSetLayoutCreateInfo {
+    VkStructureType                        sType;
+    const void*                            pNext;
+    VkDescriptorSetLayoutCreateFlags       flags;
+    uint32_t                               bindingCount;
+    const VkDescriptorSetLayoutBinding*    pBindings;
+} VkDescriptorSetLayoutCreateInfo;
+```
+
+### 2. Pipeline Layout
+
+Pipeline Layout contains multiple DescriptorSetLayouts and information about push constants.
+
+Vulkan Structure:
+
+```cpp
+typedef struct VkPipelineLayoutCreateInfo {
+    VkStructureType                 sType;
+    const void*                     pNext;
+    VkPipelineLayoutCreateFlags     flags;
+    uint32_t                        setLayoutCount;
+    const VkDescriptorSetLayout*    pSetLayouts;
+    uint32_t                        pushConstantRangeCount;
+    const VkPushConstantRange*      pPushConstantRanges;
+} VkPipelineLayoutCreateInfo;
+
+```
+
+### 3. Descriptor Set
+
+A Descriptor Set contains multiple descriptors and is created based on a DescriptorSetLayout. During rendering, each model needs to bind the appropriate Descriptor Set to the selected pipeline.
+
+Vulkan Structure:
+
+```cpp
+typedef struct VkDescriptorSetAllocateInfo {
+    VkStructureType                 sType;
+    const void*                     pNext;
+    VkDescriptorPool                descriptorPool;
+    uint32_t                        descriptorSetCount;
+    const VkDescriptorSetLayout*    pSetLayouts;
+} VkDescriptorSetAllocateInfo;
+
+```
+
+### 4. Descriptor
+
+A Descriptor provides the details for a specific uniform variable, such as the data it reads.
+
+Examples:
+
+```cpp
+typedef struct VkDescriptorImageInfo {
+    VkSampler        sampler;
+    VkImageView      imageView;
+    VkImageLayout    imageLayout;
+} VkDescriptorImageInfo;
+
+typedef struct VkDescriptorBufferInfo {
+    VkBuffer        buffer;
+    VkDeviceSize    offset;
+    VkDeviceSize    range;
+} VkDescriptorBufferInfo;
+```
+
+### 5. Pipeline
+
+The Pipeline contains all the rendering pipeline information, including the Pipeline Layout. Within VkPipelineVertexInputStateCreateInfo, it includes the binding information for Vertex Shader input variables.
+
+```glsl
+// Vertex attributes
+layout (location = 0) in vec3 inPos;
+layout (location = 1) in vec3 inNormal;
+layout (location = 2) in vec2 inUV;
+
+// Instanced attributes
+layout (location = 4) in vec3 instancePos;
+layout (location = 5) in vec3 instanceRot;
+layout (location = 6) in float instanceScale;
+layout (location = 7) in int instanceTexIndex;
+
+```
+
+The connection between these locations and the vertex buffer is established through a group of `VkVertexInputAttributeDescription`.
+
+```cpp
+vkb::initializers::vertex_input_attribute_description(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0);                      // Location 0: Position
+vkb::initializers::vertex_input_attribute_description(0, 1, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);      // Location 1: Normal
+vkb::initializers::vertex_input_attribute_description(0, 2, VK_FORMAT_R32G32_SFLOAT, sizeof(float) * 6);         // Location 2: Texture coordinates
+
+vkb::initializers::vertex_input_attribute_description(1, 4, VK_FORMAT_R32G32B32_SFLOAT, 0);                      // Location 4: Position
+vkb::initializers::vertex_input_attribute_description(1, 5, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3);      // Location 5: Rotation
+vkb::initializers::vertex_input_attribute_description(1, 6, VK_FORMAT_R32_SFLOAT, sizeof(float) * 6);            // Location 6: Scale
+vkb::initializers::vertex_input_attribute_description(1, 7, VK_FORMAT_R32_SINT, sizeof(float) * 7);              // Location 7: Texture layer index
+```
+
+This ensures a complete connection of all components, enabling proper shader execution and rendering.
+![06](/static/images/vulkan_shader/06.png)
+
+```cpp
+typedef struct VkGraphicsPipelineCreateInfo {
+    VkStructureType                                  sType;
+    const void*                                      pNext;
+    VkPipelineCreateFlags                            flags;
+    uint32_t                                         stageCount;
+    const VkPipelineShaderStageCreateInfo*           pStages;
+    const VkPipelineVertexInputStateCreateInfo*      pVertexInputState;
+    const VkPipelineInputAssemblyStateCreateInfo*    pInputAssemblyState;
+    const VkPipelineTessellationStateCreateInfo*     pTessellationState;
+    const VkPipelineViewportStateCreateInfo*         pViewportState;
+    const VkPipelineRasterizationStateCreateInfo*    pRasterizationState;
+    const VkPipelineMultisampleStateCreateInfo*      pMultisampleState;
+    const VkPipelineDepthStencilStateCreateInfo*     pDepthStencilState;
+    const VkPipelineColorBlendStateCreateInfo*       pColorBlendState;
+    const VkPipelineDynamicStateCreateInfo*          pDynamicState;
+    VkPipelineLayout                                 layout;
+    VkRenderPass                                     renderPass;
+    uint32_t                                         subpass;
+    VkPipeline                                       basePipelineHandle;
+    int32_t                                          basePipelineIndex;
+} VkGraphicsPipelineCreateInfo;
+
+```
+
+## 2. Push Constant
+
+![05](/static/images/vulkan_shader/05.png)
+In this diagram, we can see SetPushConstants, which is directly set into the Command Buffer.
+
+> PushConstants are uniform values that are stored within the CommandBuffer and can be accessed from the shaders similar to a single global uniform buffer. They provide enough bytes to hold some matrices or index values and the interpretation of the raw data is up the shader.
