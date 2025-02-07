@@ -1,0 +1,247 @@
+---
+title: '01 Vulkan Philosophies'
+date: '2024-01-20'
+lastmod: '2025-02-05'
+tags: ['Vulkan']
+draft: false
+summary: ' summary'
+authors: ['default']
+layout: PostLayout
+---
+
+# Vulkan Philosophies
+
+Vulkan's design philosophy can be summarized as follows:
+
+- **Emphasis on Full Developer Control**
+  Vulkan does not perform implicit optimizations within the driver. Instead, it provides developers with greater flexibility. Developers have full control over scheduling the rendering process, managing synchronization, and handling memory allocation and deallocation. These optimizations must be manually implemented by developers, as they have higher-level information to determine the best approach—unlike traditional graphics APIs, where the driver attempts to infer optimization strategies based on API calls.
+
+- **Multithreading-Friendly**
+  Vulkan is a multithreading-friendly graphics API, leveraging modern multi-core CPUs to avoid CPU bottlenecks caused by the single-threaded model of traditional graphics APIs. Unlike conventional APIs that bind execution to a single-threaded **Context**, modern graphics APIs (such as Vulkan, Metal, and DirectX 12) use **Command Buffers** to record commands, which are then submitted to the GPU via a **Queue**. Multiple threads can record Command Buffers simultaneously, and developers are responsible for handling synchronization. Since developers have a higher-level understanding of their application's structure, they can determine the optimal synchronization timing.
+
+- **Emphasis on Reusability**
+  In Vulkan, most components can be reused, such as resources (**Buffer** or **Image**), **Command Buffers**, and descriptor sets, improving efficiency and reducing redundant allocations.
+
+# Vulkan vs Traditional Graphics API Comparison
+
+This table compares Vulkan and OpenGL ES:
+
+| Feature                     | OpenGL ES                | Vulkan                 |
+| --------------------------- | ------------------------ | ---------------------- |
+| **State management**        | Global state             | State objects          |
+| **API execution model**     | Synchronous              | Asynchronous           |
+| **API threading model**     | Single-threaded          | Multi-threaded         |
+| **API error checking**      | Extensive runtime checks | Only via layers        |
+| **Render pass abstraction** | Inferred render passes   | Explicit render passes |
+| **Memory allocation**       | Client-server pools      | Shared memory pool     |
+| **Memory usage**            | Typed allocations        | Typed views            |
+
+## **State Management**
+
+Traditional graphics APIs use a **single global state**, whereas Vulkan adopts an **object-based state management** approach. This distinction can be observed in the following aspects:
+
+## **Descriptor**
+
+In traditional graphics APIs, every **DrawCall** requires reapplying the rendering state and rebinding resources. Since the state combination is only determined at draw time, certain optimizations become difficult to apply.
+
+Additionally, there is an implicit issue: when rendering highly complex scenes (with numerous geometries and materials), the time required for setting the rendering state and binding resources can become significant. However, modern high-quality rendering **must** handle complex scenes efficiently, as they involve a large number of geometries and intricate materials.
+
+The diagram below illustrates this challenge:
+
+![image-20240301074255270](/static/images/Vulkan/figures/image-20240301074255270.png)
+
+Vulkan uses the **Descriptor** for resource binding, allowing applications to pre-package the combinations of resource states in advance. This reduces runtime costs primarily by minimizing various validation overheads, significantly lowering the CPU overhead of the graphics driver.
+
+The trade-off is that applications must determine the required states in advance to construct state objects and benefit from the reduced overhead.
+
+In contrast, traditional graphics APIs must check all resource bindings when switching shaders to determine which ones are overridden and which need to be retained. Since they lack sufficient information for optimization, this process incurs additional
+
+Frequent **state updates and resource bindings** within each frame consume significant computation time.
+
+Modifying pipeline states requires the driver to perform numerous background tasks, such as:
+
+- **Texture downloads**
+- **Mipmap downsampling**
+- **Resource access synchronization**
+- **Validation of rendering state combinations**
+- **Error checking**
+
+For **3D application developers**, these operations occur **unpredictably at the API level**, leading to **CPU stalls**.
+
+Another **major issue** with traditional graphics APIs is that they are **not multi-thread friendly**.
+
+> Both **OpenGL** and **Direct3D** rely on the concept of a **Context**, which includes all current rendering pipeline states, bound shaders, render targets, etc.  
+> In **OpenGL**, the **Context** is tied to a single thread, meaning all operations affecting the Context (e.g., changing render states, binding shaders, issuing draw calls) must happen **on a single thread**.
+
+### Vulkan's Design Philosophy and Architecture
+
+- **More reliance on application-side management**  
+  Vulkan gives developers more control over scheduling and optimization, rather than relying on the driver for hidden optimizations.  
+  Developers know best how to optimize their applications, whereas traditional APIs rely on the driver to infer and optimize based on API call patterns.
+
+- **Multi-threading friendly**
+
+  > Vulkan enables full **multi-threaded** CPU utilization for improved performance.  
+  > Instead of **Context-bound** rendering like OpenGL, Vulkan introduces a **Queue-based** task submission system to the GPU.  
+  > It also provides **various synchronization mechanisms** to make multi-threaded programming more manageable.
+
+- **Emphasis on reuse to reduce overhead**
+  > Most Vulkan API components are **designed for efficient reuse**.
+
+---
+
+### **Device**
+
+![image-20240301081914978](/static/images/Vulkan/figures/image-20240301081914978.png)
+
+A **Device** represents a **physical GPU** in the system.  
+Its main roles include:
+
+- Selecting the GPU used for **rendering** or **computation**.
+- Providing access to GPU resources, including **video memory**, **Queues**, and **synchronization components**.
+
+---
+
+### **Pipeline**
+
+![image-20240301091000085](/static/images/Vulkan/figures/image-20240301091000085.png)
+
+A **Pipeline** encapsulates most **states and configurations** found in traditional APIs.  
+However, in Vulkan:
+
+- Pipelines must be **pre-created**, allowing all state validation and shader compilation to happen **during initialization**.
+- This prevents runtime performance overhead.
+- **Pipelines should be reusable** by binding different resources.
+
+**The following components can be dynamically bound to any Pipeline:**
+
+---
+
+### **Buffer**
+
+![image-20240302074522569](/static/images/Vulkan/figures/image-20240302074522569.png)
+
+In Vulkan, **memory type matters** when allocating Buffers:
+
+- Some memory types are **CPU-accessible**, while others are **not**.
+- Some memory is **CPU-cached**.
+- Understanding memory types is crucial for performance optimization.
+
+---
+
+### **Image**
+
+![image-20240302074643715](/static/images/Vulkan/figures/image-20240302074643715.png)
+
+Images must be **explicitly assigned a usage mode** at creation.  
+For example, Vulkan allows specifying an **Image Layout**:
+
+- **Linear** (general access)
+- **Tiled Linear** (optimized for texture filtering)
+
+> Similar to traditional APIs, **textures are not directly bound to Pipelines**.  
+> Instead, an **ImageView** is used to access and read from an Image.
+
+---
+
+### **Memory**
+
+---
+
+### **Descriptor (Binding Rules)**
+
+![image-20240302075142922](/static/images/Vulkan/figures/image-20240302075142922.png)
+
+As mentioned earlier, **Buffers and Images can be dynamically bound to any Pipeline**.  
+**Descriptors define how resources are bound**.
+
+- **Descriptor Sets** are created with **fixed layouts** defined at initialization.
+- A **Descriptor Set Layout** specifies:
+  - The **types and number of resources** bound to a Descriptor Set.
+  - The **shader indices** used to access them.
+
+> Applications can define **multiple Descriptor Set Layouts** and manage multiple **Descriptor Sets**.  
+> Since Descriptor Sets **cannot be modified after creation**, changing a resource requires **recreating the entire Descriptor Set**.  
+> However, **changing a resource offset is much faster** and can be done **dynamically during binding**.
+
+---
+
+### **Command Buffer**
+
+![image-20240302075801595](/static/images/Vulkan/figures/image-20240302075801595.png)
+
+A **Command Buffer** defines the **actual rendering operations**.
+
+- In Vulkan, **there are no immediate GPU commands**.
+- All operations, including draw calls, compute dispatches, and even memory transfers, must be recorded in a **Command Buffer**.
+
+> **Unlike traditional APIs, Vulkan does not inherit rendering states across Command Buffers.**  
+> Every **Command Buffer** must explicitly bind all required states, shaders, and Descriptor Sets.
+
+---
+
+### **Queue**
+
+![image-20240302080415306](/static/images/Vulkan/figures/image-20240302080415306.png)
+
+A **Queue** is the **only way to submit tasks to the GPU** in Vulkan.
+
+- **Unlike OpenGL**, Vulkan does not have **hidden driver-managed queues**.
+- No implicit **synchronization** occurs—**everything must be explicitly managed** by the application.
+
+Vulkan provides **several synchronization primitives**:
+
+- **Semaphore**: Synchronizes tasks **within the same Queue**.
+- **Fence** and **Event**: Allows the application to track **when a specific task has completed**.
+
+**A Queue can process multiple types of commands**, including:
+
+- **Graphics rendering**
+- **Compute workloads**
+- **Memory operations**
+
+---
+
+### **Vulkan Programming Model**
+
+Traditional APIs **map memory allocation, resource creation, and resource usage directly**.  
+However, this is **not optimal for resource management**.
+
+In Vulkan:
+
+- **A single memory allocation** can contain **multiple Buffers**.
+- Buffers can be **shared between different formats and usages**.
+- For example, **Index Buffers and Vertex Buffers can share the same memory allocation**, only differing in offset.
+
+![image-20240302081242332](/static/images/Vulkan/figures/image-20240302081242332.png)
+
+Because Vulkan **binds resources via Descriptor Sets**, it allows **efficient resource updates**.
+
+- **Multiple resources** can share **a single large Buffer**, using **offsets for differentiation**.
+- **This reduces memory allocation overhead** and **minimizes binding frequency**.
+
+![image-20240302081357322](/static/images/Vulkan/figures/image-20240302081357322.png)
+
+---
+
+### **Multi-threaded Rendering**
+
+#### **Method 1: Parallel Buffer Updates**
+
+- Multiple threads can update **different sections of a Buffer** in parallel.
+- Synchronization is necessary to avoid conflicts when **modifying shared resources**.
+
+#### **Method 2: Parallel Command Buffer Generation**
+
+- Different **scene parts** are processed in parallel across **multiple threads**, each generating its **own Command Buffer**.
+- **No explicit synchronization is required** between threads.
+- Once complete, **Command Buffers** can be **submitted from the main thread** or **directly to a per-thread Queue**.
+
+![image-20240302081838202](/static/images/Vulkan/figures/image-20240302081838202.png)
+
+Using **per-thread Command Buffer Pools** improves efficiency:
+
+- A **Command Buffer Pool** manages **Command Buffer allocations**.
+- **Resetting a Command Buffer Pool clears all Command Buffers efficiently**.
+
+Similarly, **Descriptor Pools** should be per-thread to reduce synchronization overhead.
