@@ -1,7 +1,7 @@
 ---
 title: 'Teach My Girlfriend GPU 3: Deploy to Hardware'
-date: '2025-05-08'
-lastmod: '2025-05-08'
+date: '2025-05-18'
+lastmod: '2025-05-18'
 tags: ['GPU', 'Teach My Girlfriend']
 draft: false
 summary: 'This article delves into how GPUs work at the hardware level and explains why they are designed to handle such an enormous amount of computation.'
@@ -11,4 +11,119 @@ layout: PostLayout
 
 <TOCInline toc={props.toc} />
 
-wip
+This is the third episode of "Teach My Girlfriend GPUs." In the past two episodes, we covered the essential functions a modern GPU should logically include. Of course, when implementing those directly in hardware, you inevitably run into a lot of issues cost, performance, power consumption, and so on. Let’s now explore how those problems are solved.
+
+# Unified Shader Architecture: One Pool to Rule Them All
+
+In early programmable GPUs like the GeForce FX5600 (2003), the pipeline was split: two vertex shader units and four pixel shader units. That design was most efficient when the vertex-to-pixel workload ratio was 1:2. But in real applications, triangle sizes and rendering loads vary. Sometimes there are many tiny triangles (more vertex work), and other times a single large one (more pixel work). These disparities lead to hardware underutilization — some units overloaded, others idle.
+
+With increasingly complex pipelines, trying to hardwire every stage inevitably leads to load imbalance.
+
+Before 2005, people thought Vertex Shaders needed 32-bit float precision for accurate coordinates, but they didn’t need texture sampling. Pixel Shaders, in contrast, mostly dealt with colors and base values—so high precision wasn’t necessary, but texture sampling was. This led to separate hardware units for each.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/301.png" width="80%" />
+
+But as demand evolved, those boundaries blurred: Vertex Shaders started needing texture sampling for terrain rendering, and Pixel Shaders began doing general-purpose computations, so they too needed 32-bit float precision. The result: both units ended up with similar texture samplers and ALUs. Though they got more complex, they also became more uniform.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/302.gif" width="80%" />
+
+Then people discovered a solution that addressed both issues: shared execution units. This led to the **Unified Shader** Architecture. Now the same hardware executes all shader types— no more fixed units just for vertex or pixel shaders.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/303.png" width="80%" />
+
+> [!NOTE]
+> In the pipeline, those stages still exist logically,but they use shared hardware.
+
+So how do you know when to run vertex vs. pixel shaders? That’s where a **scheduler** comes in.
+If you need X vertex shaders and Y pixel shaders, the scheduler dynamically allocates the shared hardware accordingly. This solves load imbalance dynamically, and simplifies hardware design.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/305.gif" width="80%" />
+
+The same principle applies to other functional units. For example, texture sampling is usually less frequent than computation, so you can have fewer samplers than ALUs, and let the scheduler manage the sharing.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/306.png" width="50%" />
+
+Other fixed-function units can also be scheduled this way. Take the GeForce RTX 3090 Ti, for instance: It has 10,752 unified shader cores, 336 samplers, and 112 raster and pixel operation units. Despite having many shader types, the hardware execution units are the same.
+
+# GPU vs CPU: Redefining the "Core"
+
+Why do GPUs have tens of thousands of "cores" while CPUs consider a few dozen impressive? It’s mainly because the definition of a "core" is different.
+
+Let’s introduce two computer architecture concepts:
+**SISD (Single Instruction Single Data)** and **SIMD (Single Instruction Multiple Data)**.
+To make this easier, imagine a highway analogy:
+
+- **Instructions** are like **traffic lights**,
+- **Data** is like **cars**,
+- **Data streams** are like **road lanes**.
+
+In SISD, you have a single-lane road with one traffic light controlling traffic.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/307.gif" width="80%" />
+
+In SIMD, multiple lanes share the same light— all lanes must follow the same direction.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/308.gif" width="80%" />
+
+A CPU core is like SISD, supplemented by SIMD instruction sets, like SSE, which can process four numbers at once, like four-lane roads. AVX512 now supports 16-wide lanes. Logically, all these threads
+execute the same instruction at the same time. This group of threads is called a **Warp (NVIDIA)** or **Wave (AMD)**.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/309.png" width="80%" />
+
+In contrast, a "core" in GPU terminology refers to a **single lane** in SIMD, and GPU SIMD widths are large:
+16, 32, 64, even 128.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/310.png" width="80%" />
+
+So:
+
+- CPU core count = number of roads.
+  <img src="/static/images/TeachMyGirlFriendGPUs/311.png" width="50%" />
+- GPU core count = number of lanes.
+  <img src="/static/images/TeachMyGirlFriendGPUs/312.png" width="50%" />
+
+They aren’t equivalent. To compare directly, you’d have to multiply CPU cores by the SIMD width (e.g., 4 for SSE), or divide GPU cores by warp width (e.g., 32).
+
+# SMs and Streaming Processors
+
+A **GPU "core"** is actually a **Streaming Processor (SP)**. A group of SPs + control logic + local memory
+makes up a **Streaming Multiprocessor (SM)**. For example, in NVIDIA RTX 30 series: Each SM has 128 SPs and 4 samplers.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/313.png" width="80%" />
+
+SMs are the GPU’s primary building blocks.
+3070Ti has 48 SMs, each SM is structurally identical.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/314.png" width="80%" />
+
+# SIMD Width
+
+GPU SIMD is wide. Most transistors go toward computation, a few toward control. Like a traffic light controlling 32 lanes—if one stops, they all stop. If one goes, they all go.
+
+But this approach has downsides.
+
+If you only have 2–3 cars on a 32-lane road, you’re wasting hardware. Software must fill all lanes with tasks.
+
+Second: all 32 lanes must execute the same instruction. Either all going straight of all turning left. But what if some of the 32 cars want to go sztraight and some want to turn left?
+
+That’s **branch divergence**.
+To maintain SIMD behavior, both branches must run— then use a select() operation to pick the right result. This wastes computation and increases power consumption.
+
+# Hiding Memory Latency with Warp Scheduling
+
+Wide computation needs fast memory access. Discrete GPUs have dedicated memory: **VRAM**,
+while CPU uses main memory. VRAM is usually **GDDR**, with bus widths from 128–512 bits—much wider than DDR (32–64 bits).
+
+<img src="/static/images/TeachMyGirlFriendGPUs/315.png" width="80%" />
+
+It's designed to trade high latency for high throughput. Latency is much higher than host memory.
+
+> [!NOTE]
+> It means when you want to read the data of the VRAM, it has to **wait until a batch** before returning back to you
+
+If you wait idly for memory, GPU efficiency crashes.
+Let’s say a program does some computation, loads memory, and then computes again. When a Warp reaches READ,
+it has to wait. That’s where the **Warp Scheduler** comes in. It pauses the current warp, activates another.
+Repeat this cycle until the first warp finishes memory access. This is called **hiding memory latency with computation**. It lets the GPU run far more threads than it has cores.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/316.gif" width="80%" />
