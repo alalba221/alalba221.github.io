@@ -126,4 +126,27 @@ Let’s say a program does some computation, loads memory, and then computes aga
 it has to wait. That’s where the **Warp Scheduler** comes in. It pauses the current warp, activates another.
 Repeat this cycle until the first warp finishes memory access. This is called **hiding memory latency with computation**. It lets the GPU run far more threads than it has cores.
 
-<img src="/static/images/TeachMyGirlFriendGPUs/316.gif" width="80%" />
+<img src="/static/images/TeachMyGirlFriendGPUs/316.gif" width="100%" />
+
+There is a register space inside the SM, each warp occupies a part fot local variables, etc. If the entire space is fully occupied, there is no way to schedule more warps to come in, and you have to really stop and wait for the memory to be read.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/317.png" width="80%" />
+
+This is the case where memory latency cannot be hidden by computation, which will reduce the efficiency. To optimize it, it needs to modify the algorithm or data size to reduce the memory occupation.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/318.gif" width="80%" />
+
+# Latency vs. throughput
+
+- CPU = low latency,
+- GPU = high throughput.
+
+Think of CPU as a car, quick to start, few passengers.
+GPU is a bus, slow to load, but carries many people per trip.
+
+# Cache and power consumption
+
+Because GPUs can hide memory latency, they don’t need big caches. CPUs, in contrast, require large multi-level caches to reduce latency. But caches consume a lot of power. So GPUs save power by using
+warp scheduling instead of large caches.
+
+<img src="/static/images/TeachMyGirlFriendGPUs/319.png" width="80%" />
